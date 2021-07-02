@@ -17,6 +17,8 @@ namespace IO.Ably.Push.Android
     /// </summary>
     public class AndroidMobileDevice : IMobileDevice
     {
+        private static AblyRealtime _realtimeInstance;
+
         /// <summary>
         /// Initialises the Android MobileDevice implementation with the IoC dependency.
         /// </summary>
@@ -26,15 +28,28 @@ namespace IO.Ably.Push.Android
         }
 
         /// <summary>
+        /// Registers the AblyRealtime instance used for push notifications.
+        /// </summary>
+        /// <param name="realtime">Instance of AblyRealtime.</param>
+        public static void RegisterRealtimeInstanceForPush(AblyRealtime realtime) => _realtimeInstance = realtime;
+
+        /// <summary>
         /// Method to be called by OnNewToken which is part of a class inheriting from FirebaseMessagingService.
         /// </summary>
         /// <param name="token">The passed deviceRegistration token.</param>
         public static void OnNewRegistrationToken(string token)
         {
+            if (_realtimeInstance is null)
+            {
+                throw new AblyException(
+                    "No realtime instance was registered. Please call AndroidMobileDevice.RegisterRealtimeInstanceForPush(realtime) and pass your AblyRealtime instance.");
+            }
+
             var logger = DefaultLogger.LoggerInstance;
             logger.Debug($"Received OnNewRegistrationToken with token {token}");
 
-            // TODO: Implement a way to retrieve a static StateMachine.
+            var pushRealtime = _realtimeInstance.GetPushRealtime();
+            pushRealtime.StateMachine.UpdateRegistrationToken(Result.Ok(token));
         }
 
         private readonly ILogger _logger;
