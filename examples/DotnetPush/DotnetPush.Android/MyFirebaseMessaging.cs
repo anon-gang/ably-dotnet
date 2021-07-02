@@ -5,6 +5,7 @@ using Firebase.Messaging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using IO.Ably.Push.Android;
 
 namespace DotnetPush.Droid
 {
@@ -25,7 +26,7 @@ namespace DotnetPush.Droid
 
         public override void OnNewToken(String token)
         {
-            Debugger.Break();
+            AndroidMobileDevice.OnNewRegistrationToken(token);
         }
 
         /// <summary>

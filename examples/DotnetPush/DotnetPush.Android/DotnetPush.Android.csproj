@@ -16,7 +16,6 @@
     <AndroidManifest>Properties\AndroidManifest.xml</AndroidManifest>
     <MonoAndroidResourcePrefix>Resources</MonoAndroidResourcePrefix>
     <MonoAndroidAssetsPrefix>Assets</MonoAndroidAssetsPrefix>
-    <AndroidUseLatestPlatformSdk>false</AndroidUseLatestPlatformSdk>
     <TargetFrameworkVersion>v11.0</TargetFrameworkVersion>
     <AndroidEnableSGenConcurrent>true</AndroidEnableSGenConcurrent>
     <AndroidUseAapt2>true</AndroidUseAapt2>
@@ -116,7 +115,7 @@
       <Name>IO.Ably.Push.Android</Name>
     </ProjectReference>
     <ProjectReference Include="..\DotnetPush\DotnetPush.csproj">
-      <Project>{C5C904D5-306C-40EB-A6F3-C75BE5D45A39}</Project>
+      <Project>{181C3DF6-5C17-4A68-83B9-1CEBE3DE5445}</Project>
       <Name>DotnetPush</Name>
     </ProjectReference>
   </ItemGroup>

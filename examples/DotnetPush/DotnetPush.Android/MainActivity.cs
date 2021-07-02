@@ -51,6 +51,7 @@ namespace DotnetPush.Droid
                 options.ClientId = Guid.NewGuid().ToString("D");
             }
             _realtime = new AblyRealtime(options);
+            AndroidMobileDevice.RegisterRealtimeInstanceForPush(_realtime);
             _realtime.Connect();
         }
 
