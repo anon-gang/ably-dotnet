@@ -8,7 +8,7 @@ using IO.Ably.Infrastructure;
 
 namespace IO.Ably.Push
 {
-    internal partial class ActivationStateMachine
+    internal partial class ActivationStateMachine : IPushStateMachine
     {
         private SemaphoreSlim _handleEventsLock = new SemaphoreSlim(1, 1);
         private Queue<Event> _pendingEvents = new Queue<Event>();
@@ -193,35 +193,9 @@ namespace IO.Ably.Push
 
         private void GetRegistrationToken()
         {
-            _mobileDevice.RequestRegistrationToken(result =>
-            {
-                if (result.IsSuccess)
-                {
-                    var token = result.Value;
-                    var previous = LocalDevice.RegistrationToken;
-                    if (previous != null)
-                    {
-                        if (previous.Token.EqualsTo(token))
-                        {
-                            return;
-                        }
-                    }
-
-                    // TODO: Log
-                    var registrationToken = new RegistrationToken(RegistrationToken.Fcm, token);
-                    LocalDevice.RegistrationToken = registrationToken;
-
-                    // TODO: What happens if this errors
-                    PersistRegistrationToken(registrationToken);
-
-                    _ = HandleEvent(new GotPushDeviceDetails());
-                }
-                else
-                {
-                    // Todo: Log
-                    _ = HandleEvent(new GettingPushDeviceDetailsFailed(result.Error));
-                }
-            });
+            // On Android the callback is executed.
+            // On iOS it is not.
+            _mobileDevice.RequestRegistrationToken(UpdateRegistrationToken);
         }
 
         private void PersistRegistrationToken(RegistrationToken token)
@@ -249,6 +223,36 @@ namespace IO.Ably.Push
             }
 
             _mobileDevice.SendIntent(name, properties);
+        }
+
+        public void UpdateRegistrationToken(Result<string> tokenResult)
+        {
+            if (tokenResult.IsSuccess)
+            {
+                var token = tokenResult.Value;
+                var previous = LocalDevice.RegistrationToken;
+                if (previous != null)
+                {
+                    if (previous.Token.EqualsTo(token))
+                    {
+                        return;
+                    }
+                }
+
+                // TODO: Log
+                var registrationToken = new RegistrationToken(RegistrationToken.Fcm, token);
+                LocalDevice.RegistrationToken = registrationToken;
+
+                // TODO: What happens if this errors
+                PersistRegistrationToken(registrationToken);
+
+                _ = HandleEvent(new GotPushDeviceDetails());
+            }
+            else
+            {
+                // Todo: Log
+                _ = HandleEvent(new GettingPushDeviceDetailsFailed(tokenResult.Error));
+            }
         }
 
         private void SendIntent(string name)
