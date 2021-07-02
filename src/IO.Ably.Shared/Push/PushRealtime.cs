@@ -11,6 +11,12 @@ namespace IO.Ably.Push
         private readonly AblyRest _restClient;
         private readonly ActivationStateMachine _stateMachine;
 
+        /// <summary>
+        /// Push activation state machine. It manages internal state of the push registration.
+        /// No need for users to use it.
+        /// </summary>
+        public IPushStateMachine StateMachine => _stateMachine;
+
         internal PushRealtime(AblyRest restClient, ILogger logger)
         {
             _restClient = restClient;
