@@ -27,6 +27,8 @@
     <MtouchArch>x86_64</MtouchArch>
     <MtouchLink>None</MtouchLink>
     <MtouchDebug>true</MtouchDebug>
+    <CodesignProvision>VS: com.companyname.DotnetPush Development</CodesignProvision>
+    <CodesignKey>Apple Development: Martin Georgiev (M8ZL9UMJP9)</CodesignKey>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|iPhoneSimulator' ">
     <DebugType>none</DebugType>
@@ -36,6 +38,8 @@
     <WarningLevel>4</WarningLevel>
     <MtouchLink>None</MtouchLink>
     <MtouchArch>x86_64</MtouchArch>
+    <CodesignProvision>VS: com.companyname.DotnetPush Development</CodesignProvision>
+    <CodesignKey>Apple Development: Martin Georgiev (M8ZL9UMJP9)</CodesignKey>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|iPhone' ">
     <DebugSymbols>true</DebugSymbols>
@@ -46,7 +50,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <MtouchArch>ARM64</MtouchArch>
-    <CodesignKey>iPhone Developer</CodesignKey>
+    <CodesignKey>Apple Development: Martin Georgiev (M8ZL9UMJP9)</CodesignKey>
     <MtouchDebug>true</MtouchDebug>
     <CodesignEntitlements>Entitlements.plist</CodesignEntitlements>
     <MtouchLink>None</MtouchLink>
@@ -59,8 +63,10 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <MtouchArch>ARM64</MtouchArch>
-    <CodesignKey>iPhone Developer</CodesignKey>
+    <CodesignKey>Apple Development: Martin Georgiev (M8ZL9UMJP9)</CodesignKey>
     <CodesignEntitlements>Entitlements.plist</CodesignEntitlements>
+    <CodesignProvision>VS: com.companyname.DotnetPush Development</CodesignProvision>
+    <MtouchLink>SdkOnly</MtouchLink>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Main.cs" />
@@ -137,9 +143,17 @@
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\iOS\Xamarin.iOS.CSharp.targets" />
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\IO.Ably.Push.iOS\IO.Ably.Push.iOS.csproj">
+      <Project>{e1a8fde2-fefc-403e-99a0-f13847b1495e}</Project>
+      <Name>IO.Ably.Push.iOS</Name>
+    </ProjectReference>
     <ProjectReference Include="..\DotnetPush\DotnetPush.csproj">
-      <Project>{C5C904D5-306C-40EB-A6F3-C75BE5D45A39}</Project>
+      <Project>{181C3DF6-5C17-4A68-83B9-1CEBE3DE5445}</Project>
       <Name>DotnetPush</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\src\IO.Ably.NETStandard20\IO.Ably.NETStandard20.csproj">
+      <Project>{97ED15E5-6546-4437-BF4F-B929700CE922}</Project>
+      <Name>IO.Ably.NETStandard20</Name>
     </ProjectReference>
   </ItemGroup>
 </Project>
