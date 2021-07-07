@@ -65,16 +65,14 @@ namespace IO.Ably.Push
             SendErrorIntent("PUSH_DEACTIVATE", reason); // TODO: Put intent names in consts
         }
 
-        private async Task ValidateRegistration()
+        private async Task<Event> ValidateRegistration()
         {
             Debug("Validating Registration");
 
-            // Make sure the call is not completed synchronously
-            await Task.Yield();
-
             // TODO: See if I need to get Ably from some kind of context
             var presentClientId = _restClient.Auth.ClientId;
-            if (presentClientId.IsNotEmpty() && LocalDevice.ClientId.IsNotEmpty() && presentClientId.EqualsTo(LocalDevice.ClientId) == false)
+            if (presentClientId.IsNotEmpty() && LocalDevice.ClientId.IsNotEmpty() &&
+                presentClientId.EqualsTo(LocalDevice.ClientId) == false)
             {
                 Debug(
                     $"Activation failed. Auth clientId '{presentClientId}' is not equal to Device clientId '{LocalDevice.ClientId}'");
@@ -84,8 +82,7 @@ namespace IO.Ably.Push
                     ErrorCodes.ActivationFailedClientIdMismatch,
                     HttpStatusCode.BadRequest);
 
-                _ = HandleEvent(new SyncRegistrationFailed(error));
-                return;
+                return new SyncRegistrationFailed(error);
             }
 
             try
@@ -93,12 +90,12 @@ namespace IO.Ably.Push
                 await _restClient.Push.Admin.DeviceRegistrations.SaveAsync(LocalDevice);
 
                 // TODO: SetClientId from returned devices in case it has been set differently
-                _ = HandleEvent(new RegistrationSynced());
+                return new RegistrationSynced();
             }
             catch (AblyException e)
             {
-                // TODO: Log
-                _ = HandleEvent(new SyncRegistrationFailed(e.ErrorInfo));
+                Error("Error validating registration", e);
+                return new SyncRegistrationFailed(e.ErrorInfo);
             }
         }
 
@@ -199,7 +196,8 @@ namespace IO.Ably.Push
 
         private void PersistState()
         {
-            Debug($"Prersisting State and PendingQueue. State: {CurrentState.GetType().Name}. Queue: {_pendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}");
+            Debug(
+                $"Prersisting State and PendingQueue. State: {CurrentState.GetType().Name}. Queue: {_pendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}");
 
             if (CurrentState != null && CurrentState.Persist)
             {
@@ -300,35 +298,32 @@ namespace IO.Ably.Push
         /// <summary>
         /// De-registers the current device.
         /// </summary>
-        private async Task Deregister()
+        private async Task<Event> Deregister()
         {
-            // Make sure the call is not completed synchronously
-            await Task.Yield();
-
             try
             {
                 await _restClient.Push.Admin.DeviceRegistrations.RemoveAsync(LocalDevice.Id);
-                _ = HandleEvent(new Deregistered());
+                return new Deregistered();
             }
             catch (AblyException e)
             {
-                // Log
-                _ = HandleEvent(new DeregistrationFailed(e.ErrorInfo));
+                // TODO: Log
+                return new DeregistrationFailed(e.ErrorInfo);
             }
         }
 
-        private async Task UpdateRegistration(DeviceDetails details)
+        private async Task<Event> UpdateRegistration(DeviceDetails details)
         {
             try
             {
                 Debug($"Updating device registration {details.ToJson()}");
                 await _restClient.Push.Admin.PatchDeviceRecipient(details);
-                _ = HandleEvent(new RegistrationSynced());
+                return new RegistrationSynced();
             }
             catch (AblyException ex)
             {
                 Error($"Error updating Registration. DeviceDetails: {details.ToJson()}", ex);
-                _ = HandleEvent(new SyncRegistrationFailed(ex.ErrorInfo));
+                return new SyncRegistrationFailed(ex.ErrorInfo);
             }
         }
 
@@ -406,7 +401,8 @@ namespace IO.Ably.Push
                 CurrentState = LoadState();
                 _pendingEvents = LoadPersistedEvents();
 
-                Debug($"State loaded. CurrentState: '{CurrentState.GetType().Name}', PendingEvents: '{_pendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}'.");
+                Debug(
+                    $"State loaded. CurrentState: '{CurrentState.GetType().Name}', PendingEvents: '{_pendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}'.");
 
                 Queue<Event> LoadPersistedEvents()
                 {

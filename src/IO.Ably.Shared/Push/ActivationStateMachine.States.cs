@@ -1,10 +1,31 @@
-﻿using System.Net;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace IO.Ably.Push
 {
     internal partial class ActivationStateMachine
     {
+        internal static readonly Func<Task<Event>> EmptyNextEventFunc =
+            () => Task.FromResult((Event)null);
+
+        internal static Func<Task<Event>> ToNextEventFunc(Func<Task<Event>> singleEventFunc)
+        {
+            return async () => await singleEventFunc();
+        }
+
+        internal static Func<Task<Event>> ToNextEventFunc(Event nextEvent)
+        {
+            if (nextEvent is null)
+            {
+                return EmptyNextEventFunc;
+            }
+
+            return async () => nextEvent;
+        }
+
         public abstract class State
         {
             protected State(ActivationStateMachine machine)
@@ -16,7 +37,9 @@ namespace IO.Ably.Push
 
             public abstract bool Persist { get; }
 
-            public abstract Task<State> Transition(Event @event);
+            public abstract bool CanHandleEvent(Event @event);
+
+            public abstract Task<(State, Func<Task<Event>>)> Transition(Event @event);
         }
 
         public sealed class NotActivated : State
@@ -28,26 +51,32 @@ namespace IO.Ably.Push
 
             public override bool Persist => true;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return @event is CalledActivate || @event is CalledDeactivate || @event is GotPushDeviceDetails;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledDeactivate _:
                         Machine.CallDeactivatedCallback(null);
-                        return this;
+                        return (this, EmptyNextEventFunc);
                     case CalledActivate _:
                         // TODO: Logging
                         var device = Machine.LocalDevice;
 
                         if (device.IsRegistered)
                         {
-                            _ = Machine.ValidateRegistration();
-                            return new WaitingForRegistrationSync(Machine, @event);
+                            var newState = new WaitingForRegistrationSync(Machine, @event);
+                            return (newState, ToNextEventFunc(Machine.ValidateRegistration));
                         }
 
+                        Event nextEvent = null;
                         if (device.RegistrationToken != null)
                         {
-                            Machine.AddToEventQueue(new GotPushDeviceDetails());
+                            nextEvent = new GotPushDeviceDetails();
                         }
                         else
                         {
@@ -61,11 +90,11 @@ namespace IO.Ably.Push
                             Machine.LocalDevice = newLocalDevice;
                         }
 
-                        return new WaitingForPushDeviceDetails(Machine);
+                        return (new WaitingForPushDeviceDetails(Machine), ToNextEventFunc(nextEvent));
                     case GotPushDeviceDetails _:
-                        return this;
+                        return (this, EmptyNextEventFunc);
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
                 }
             }
         }
@@ -80,63 +109,70 @@ namespace IO.Ably.Push
 
             public override bool Persist => true;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return @event is CalledActivate
+                       || @event is CalledDeactivate
+                       || @event is GettingPushDeviceDetailsFailed
+                       || @event is GotPushDeviceDetails;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledActivate _:
-                        return this;
+                        return (this, EmptyNextEventFunc);
                     case CalledDeactivate _:
                         Machine.CallDeactivatedCallback(null);
-                        return new NotActivated(Machine);
-                    case ActivationStateMachine.GettingPushDeviceDetailsFailed failedEvent:
+                        return (new NotActivated(Machine), EmptyNextEventFunc);
+                    case GettingPushDeviceDetailsFailed failedEvent:
                         Machine.CallDeactivatedCallback(failedEvent.Reason);
-                        return new NotActivated(Machine);
+                        return (new NotActivated(Machine), EmptyNextEventFunc);
                     case GotPushDeviceDetails _:
-                    {
-                        DeviceDetails device = Machine.LocalDevice;
-
-                        var ably = Machine._restClient; // TODO: Check if there is an instance when Ably is not set. In which case Java set queues GettingDeviceRegistrationFailed
-
-                        try
-                        {
-                            var registeredDevice = await ably.Push.Admin.RegisterDevice(device);
-                            var deviceIdentityToken = registeredDevice.DeviceIdentityToken;
-                            if (deviceIdentityToken.IsEmpty())
-                            {
-                                // TODO: Log
-                                _ = Machine.HandleEvent(new GettingDeviceRegistrationFailed(new ErrorInfo("Invalid deviceIdentityToken in response", 40000, HttpStatusCode.BadRequest)));
-                            }
-                            else
-                            {
-                                // TODO: When integration testing this will most likely fail. I suspect deviceIdentityToken is not a plain string.
-                                _ = Machine.HandleEvent(new GotDeviceRegistration(deviceIdentityToken));
-
-                                // TODO: RSH8f. Leaving commented out code as a reminder.
-                                // I still haven't figured out how clientId in the state machine could be different from the one stored in the client
-                                // JsonPrimitive responseClientIdJson = response.getAsJsonPrimitive("clientId");
-                                // if (responseClientIdJson != null)
-                                // {
-                                //     String responseClientId = responseClientIdJson.getAsString();
-                                //     if (device.clientId == null)
-                                //     {
-                                //         /* Spec RSH8f: there is an implied clientId in our credentials that we didn't know about */
-                                //         activationContext.setClientId(responseClientId, false);
-                                //     }
-                                // }
-                            }
-                        }
-                        catch (AblyException e)
-                        {
-                            // Log
-                            _ = Machine.HandleEvent(new GettingDeviceRegistrationFailed(e.ErrorInfo));
-                        }
-
-                        return new WaitingForDeviceRegistration(Machine);
-                    }
-
+                        return (new WaitingForDeviceRegistration(Machine), ToNextEventFunc(RegisterDevice));
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
+                }
+
+                async Task<Event> RegisterDevice()
+                {
+                    DeviceDetails device = Machine.LocalDevice;
+
+                    var ably = Machine._restClient; // TODO: Check if there is an instance when Ably is not set. In which case Java set queues GettingDeviceRegistrationFailed
+
+                    try
+                    {
+                        var registeredDevice = await ably.Push.Admin.RegisterDevice(device);
+                        var deviceIdentityToken = registeredDevice.DeviceIdentityToken;
+                        if (deviceIdentityToken.IsEmpty())
+                        {
+                            // TODO: Log
+                            return new GettingDeviceRegistrationFailed(new ErrorInfo(
+                                "Invalid deviceIdentityToken in response", 40000, HttpStatusCode.BadRequest));
+                        }
+
+                        // TODO: When integration testing this will most likely fail. I suspect deviceIdentityToken is not a plain string.
+                        return new GotDeviceRegistration(deviceIdentityToken);
+
+                        // TODO: RSH8f. Leaving commented out code as a reminder.
+                        // I still haven't figured out how clientId in the state machine could be different from the one stored in the client
+                        // JsonPrimitive responseClientIdJson = response.getAsJsonPrimitive("clientId");
+                        // if (responseClientIdJson != null)
+                        // {
+                        //     String responseClientId = responseClientIdJson.getAsString();
+                        //     if (device.clientId == null)
+                        //     {
+                        //         /* Spec RSH8f: there is an implied clientId in our credentials that we didn't know about */
+                        //         activationContext.setClientId(responseClientId, false);
+                        //     }
+                        // }
+                    }
+                    catch (AblyException e)
+                    {
+                        // Log
+                        return new GettingDeviceRegistrationFailed(e.ErrorInfo);
+                    }
                 }
             }
         }
@@ -150,21 +186,27 @@ namespace IO.Ably.Push
 
             public override bool Persist => false;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return @event is CalledActivate || @event is GotDeviceRegistration ||
+                       @event is GettingDeviceRegistrationFailed;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledActivate _:
-                        return this;
+                        return (this, EmptyNextEventFunc);
                     case GotDeviceRegistration registrationEvent:
                         Machine.SetDeviceIdentityToken(registrationEvent.DeviceIdentityToken);
                         Machine.CallActivatedCallback(null);
-                        return new WaitingForNewPushDeviceDetails(Machine);
+                        return (new WaitingForNewPushDeviceDetails(Machine), EmptyNextEventFunc);
                     case GettingDeviceRegistrationFailed failedEvent:
                         Machine.CallActivatedCallback(failedEvent.Reason);
-                        return new NotActivated(Machine);
+                        return (new NotActivated(Machine), EmptyNextEventFunc);
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
                 }
             }
         }
@@ -178,28 +220,29 @@ namespace IO.Ably.Push
 
             public override bool Persist => true;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return @event is CalledActivate || @event is CalledDeactivate || @event is GotPushDeviceDetails;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledActivate _:
                         Machine.CallActivatedCallback(null);
-                        return this;
+                        return (this, EmptyNextEventFunc);
                     case CalledDeactivate _:
-                        // We don't want to wait for the call to complete
-                        // which is why I'm not awaiting it.
-                        _ = Machine.Deregister();
-
-                        return new WaitingForDeregistration(Machine, this);
+                        return (new WaitingForDeregistration(Machine, this), ToNextEventFunc(Machine.Deregister));
                     case GotPushDeviceDetails _:
                         // Note: I don't fully understand why we do this.
                         var device = Machine.EnsureLocalDeviceIsLoaded();
 
-                        _ = Machine.UpdateRegistration(device);
+                        var nextEvent = await Machine.UpdateRegistration(device);
 
-                        return new WaitingForRegistrationSync(Machine, @event);
+                        return (new WaitingForRegistrationSync(Machine, @event), ToNextEventFunc(nextEvent));
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
                 }
             }
         }
@@ -216,22 +259,26 @@ namespace IO.Ably.Push
 
             public override bool Persist => false;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return @event is CalledDeactivate || @event is Deregistered || @event is DeregistrationFailed;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledDeactivate _:
-                        return this;
+                        return (this, EmptyNextEventFunc);
                     case Deregistered _:
-
                         Machine.ResetDevice();
                         Machine.CallDeactivatedCallback(null);
-                        return new NotActivated(Machine);
+                        return (new NotActivated(Machine), EmptyNextEventFunc);
                     case DeregistrationFailed failed:
                         Machine.CallDeactivatedCallback(failed.Reason);
-                        return _previousState;
+                        return (_previousState, EmptyNextEventFunc);
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
                 }
             }
         }
@@ -249,18 +296,25 @@ namespace IO.Ably.Push
 
             public override bool Persist => false;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return (@event is CalledActivate && !(_fromEvent is CalledActivate))
+                        || @event is RegistrationSynced
+                        || @event is SyncRegistrationFailed;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledActivate _ when _fromEvent is CalledActivate:
                         // Don't handle; there's a CalledActivate ongoing already, so this one should
                         // be enqueued for when that one finishes.
-                        return null;
+                        return (null, EmptyNextEventFunc);
 
                     case CalledActivate _:
                         Machine.CallActivatedCallback(null);
-                        return this;
+                        return (this, EmptyNextEventFunc);
 
                     case RegistrationSynced _:
                         if (_fromEvent is CalledActivate)
@@ -268,10 +322,10 @@ namespace IO.Ably.Push
                             Machine.CallActivatedCallback(null);
                         }
 
-                        return new WaitingForNewPushDeviceDetails(Machine);
+                        return (new WaitingForNewPushDeviceDetails(Machine), EmptyNextEventFunc);
 
                     case SyncRegistrationFailed failed:
-                        // TODO: Here we could try to recover ourselves if the error is e. g.
+                        // TODO: Here we could try to recover ourselves if the error is e.g.
                         // a networking error. Just notify the user for now.
                         ErrorInfo reason = failed.Reason;
                         if (_fromEvent is CalledActivate)
@@ -283,10 +337,10 @@ namespace IO.Ably.Push
                             Machine.CallSyncRegistrationFailedCallback(reason);
                         }
 
-                        return new AfterRegistrationSyncFailed(Machine);
+                        return (new AfterRegistrationSyncFailed(Machine), EmptyNextEventFunc);
 
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
                 }
             }
         }
@@ -300,19 +354,22 @@ namespace IO.Ably.Push
 
             public override bool Persist => true;
 
-            public override async Task<State> Transition(Event @event)
+            public override bool CanHandleEvent(Event @event)
+            {
+                return @event is CalledActivate || @event is GotPushDeviceDetails || @event is CalledDeactivate;
+            }
+
+            public override async Task<(State, Func<Task<Event>>)> Transition(Event @event)
             {
                 switch (@event)
                 {
                     case CalledActivate _:
                     case GotPushDeviceDetails _:
-                        _ = Machine.ValidateRegistration();
-                        return new WaitingForRegistrationSync(Machine, @event);
+                        return (new WaitingForRegistrationSync(Machine, @event), ToNextEventFunc(Machine.ValidateRegistration));
                     case CalledDeactivate _:
-                        _ = Machine.Deregister();
-                        return new WaitingForDeregistration(Machine, this);
+                        return (new WaitingForDeregistration(Machine, this), ToNextEventFunc(Machine.Deregister));
                     default:
-                        return null;
+                        return (null, EmptyNextEventFunc);
                 }
             }
         }
