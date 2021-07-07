@@ -104,46 +104,72 @@ namespace IO.Ably.Push
 
         public async Task HandleEvent(Event @event)
         {
+            async Task<State> GetNextState(State currentState, Event @eventToProcess)
+            {
+                if (eventToProcess is null)
+                {
+                    return currentState;
+                }
+
+                var (nextState, nextEventFunc) = await currentState.Transition(@eventToProcess);
+
+                if (nextState == null || ReferenceEquals(nextState, currentState))
+                {
+                    return currentState;
+                }
+
+                var nextEvent = await nextEventFunc();
+
+                if (nextEvent is null)
+                {
+                    return nextState;
+                }
+
+                return await GetNextState(nextState, nextEvent);
+            }
+
             async Task HandleInner()
             {
-                State maybeNext = await CurrentState.Transition(@event);
-                if (maybeNext is null)
+                if (CurrentState.CanHandleEvent(@event) == false)
                 {
                     Debug("No next state returned. Queuing event for later execution.");
                     _pendingEvents.Enqueue(@event);
                     return;
                 }
-                else
-                {
-                    Debug($"Setting state to {maybeNext.GetType().Name}");
-                }
 
-                CurrentState = maybeNext;
+                CurrentState = await GetNextState(CurrentState, @event);
 
-                while (true)
+                // Once we have updated the state we can get the next event which came from the Update
+                // and try to transition the state again.
+                while (_pendingEvents.Any())
                 {
-                    Event pending = _pendingEvents.Any() ? _pendingEvents.Peek() : null;
+                    Event pending = _pendingEvents.Peek();
                     if (pending is null)
                     {
                         break;
                     }
 
-                    Debug($"Processing pending event ({pending.GetType().Name}. CurrentState: {CurrentState.GetType().Name}");
-                    var nextState = await CurrentState.Transition(pending);
-                    if (nextState is null)
+                    if (CurrentState.CanHandleEvent(pending))
                     {
+                        Debug($"Processing pending event ({pending.GetType().Name}. CurrentState: {CurrentState.GetType().Name}");
+
+                        // Update the current state based on the event we got.
+                        CurrentState = await GetNextState(CurrentState, pending);
+                        _ = _pendingEvents.Dequeue(); // Remove the message from the queue.
+                    }
+                    else
+                    {
+                        Debug(
+                            $"({pending.GetType().Name} can't be handled by currentState: {CurrentState.GetType().Name}");
                         break;
                     }
-
-                    Debug($"Setting state to {nextState.GetType().Name}");
-
-                    _ = _pendingEvents.Dequeue(); // Remove the message from the queue
-                    CurrentState = nextState;
                 }
             }
 
-            await Task.Yield();
-
+            // Handle current event and any consequent events
+            // if current event didn't change state put it in pending queue and return
+            // finally check the pending event queue and process it following the above rules
+            // finally finally - preserve the state
             Debug($"Handling event ({@event.GetType().Name}. CurrentState: {CurrentState.GetType().Name}");
 
             var canEnter = await _handleEventsLock.WaitAsync(2000); // Arbitrary number = 1 second
