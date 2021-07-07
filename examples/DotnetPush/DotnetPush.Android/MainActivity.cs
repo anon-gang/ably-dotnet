@@ -23,8 +23,8 @@ namespace DotnetPush.Droid
             base.OnCreate(savedInstanceState);
 
             _loggerSink = new AppLoggerSink();
-            Xamarin.Essentials.Platform.Init(this, savedInstanceState);
-            global::Xamarin.Forms.Forms.Init(this, savedInstanceState);
+            Platform.Init(this, savedInstanceState);
+            Xamarin.Forms.Forms.Init(this, savedInstanceState);
 
             // Initialise the Firebase application
             FirebaseApp.InitializeApp(this);
@@ -40,6 +40,7 @@ namespace DotnetPush.Droid
             options.Key = "GJvITg.Jnks6w:IUoxrgaHjIw5LHQG";
             options.LogHandler = _loggerSink;
             options.LogLevel = LogLevel.Debug;
+
             // This is just to make testing easier.
             // In a normal app this will usually be set to Secure.GetString(ContentResolver, Secure.AndroidId);
             if (string.IsNullOrWhiteSpace(savedClientId) == false)
@@ -57,7 +58,7 @@ namespace DotnetPush.Droid
 
         public override void OnRequestPermissionsResult(int requestCode, string[] permissions, [GeneratedEnum] Android.Content.PM.Permission[] grantResults)
         {
-            Xamarin.Essentials.Platform.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+            Platform.OnRequestPermissionsResult(requestCode, permissions, grantResults);
 
             base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
         }
