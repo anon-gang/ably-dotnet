@@ -22,9 +22,12 @@ namespace IO.Ably.Push.Android
         /// <summary>
         /// Initialises the Android MobileDevice implementation with the IoC dependency.
         /// </summary>
-        public static void Initialise()
+        /// <param name="configureCallbacks">Option action which can be used to configure callbacks. It's especially useful to subscribe/unsubscribe to push channels when a device is activated / deactivated.</param>
+        public static void Initialise(Action<PushCallbacks> configureCallbacks = null)
         {
-            IoC.MobileDevice = new AndroidMobileDevice(DefaultLogger.LoggerInstance);
+            var callbacks = new PushCallbacks();
+            configureCallbacks?.Invoke(callbacks);
+            IoC.MobileDevice = new AndroidMobileDevice(callbacks, DefaultLogger.LoggerInstance);
         }
 
         /// <summary>
@@ -54,8 +57,9 @@ namespace IO.Ably.Push.Android
 
         private readonly ILogger _logger;
 
-        private AndroidMobileDevice(ILogger logger)
+        private AndroidMobileDevice(PushCallbacks callbacks, ILogger logger)
         {
+            Callbacks = callbacks;
             _logger = logger;
         }
 
@@ -98,6 +102,11 @@ namespace IO.Ably.Push.Android
                 return DeviceFormFactor.Other;
             }
         }
+
+        /// <summary>
+        /// Used to setup callbacks for various places in the push notifications process.
+        /// </summary>
+        public PushCallbacks Callbacks { get; }
 
         /// <inheritdoc/>
         public void SendIntent(string name, Dictionary<string, object> extraParameters)

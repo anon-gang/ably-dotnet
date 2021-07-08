@@ -5,13 +5,15 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using IO.Ably.Infrastructure;
+using IO.Ably.Utils;
 
 namespace IO.Ably.Push
 {
     internal partial class ActivationStateMachine : IPushStateMachine
     {
         private SemaphoreSlim _handleEventsLock = new SemaphoreSlim(1, 1);
-        private Queue<Event> _pendingEvents = new Queue<Event>();
+
+        public Queue<Event> PendingEvents { get; private set; } = new Queue<Event>();
 
         private readonly AblyRest _restClient;
         private readonly IMobileDevice _mobileDevice;
@@ -27,13 +29,22 @@ namespace IO.Ably.Push
             get => _currentState;
             private set
             {
-                if (value != null)
+                if (value != null && ReferenceEquals(value, _currentState) == false)
                 {
                     StateChangeHandler(_currentState?.GetType().Name, value.GetType().Name);
                 }
 
                 _currentState = value;
             }
+        }
+
+        /// <summary>
+        /// Used for testing.
+        /// </summary>
+        /// <param name="newState">The new State which will replace the value of CurrentState.</param>
+        internal void SetState(State newState)
+        {
+            CurrentState = newState;
         }
 
         public LocalDevice LocalDevice { get; set; } = new LocalDevice();
@@ -58,11 +69,6 @@ namespace IO.Ably.Push
             stateMachine.EnsureLocalDeviceIsLoaded();
 
             return stateMachine;
-        }
-
-        private void CallDeactivatedCallback(ErrorInfo reason)
-        {
-            SendErrorIntent("PUSH_DEACTIVATE", reason); // TODO: Put intent names in consts
         }
 
         private async Task<Event> ValidateRegistration()
@@ -101,6 +107,35 @@ namespace IO.Ably.Push
 
         public async Task HandleEvent(Event @event)
         {
+            // Handle current event and any consequent events
+            // if current event didn't change state put it in pending queue and return
+            // finally check the pending event queue and process it following the above rules
+            // finally finally - preserve the state
+            Debug($"Handling event ({@event.GetType().Name}. CurrentState: {CurrentState.GetType().Name}");
+
+            var canEnter = await _handleEventsLock.WaitAsync(2000); // Arbitrary number = 2 second
+            if (canEnter)
+            {
+                try
+                {
+                    await HandleInner();
+                    PersistState();
+                }
+                catch (Exception exception)
+                {
+                    _logger.Error("Error processing handle event.", exception);
+                    throw;
+                }
+                finally
+                {
+                    _handleEventsLock.Release();
+                }
+            }
+            else
+            {
+                Debug("Failed to acquire HandleEvent lock.");
+            }
+
             async Task<State> GetNextState(State currentState, Event @eventToProcess)
             {
                 if (eventToProcess is null)
@@ -130,7 +165,7 @@ namespace IO.Ably.Push
                 if (CurrentState.CanHandleEvent(@event) == false)
                 {
                     Debug("No next state returned. Queuing event for later execution.");
-                    _pendingEvents.Enqueue(@event);
+                    PendingEvents.Enqueue(@event);
                     return;
                 }
 
@@ -138,9 +173,9 @@ namespace IO.Ably.Push
 
                 // Once we have updated the state we can get the next event which came from the Update
                 // and try to transition the state again.
-                while (_pendingEvents.Any())
+                while (PendingEvents.Any())
                 {
-                    Event pending = _pendingEvents.Peek();
+                    Event pending = PendingEvents.Peek();
                     if (pending is null)
                     {
                         break;
@@ -152,7 +187,7 @@ namespace IO.Ably.Push
 
                         // Update the current state based on the event we got.
                         CurrentState = await GetNextState(CurrentState, pending);
-                        _ = _pendingEvents.Dequeue(); // Remove the message from the queue.
+                        _ = PendingEvents.Dequeue(); // Remove the message from the queue.
                     }
                     else
                     {
@@ -162,49 +197,19 @@ namespace IO.Ably.Push
                     }
                 }
             }
-
-            // Handle current event and any consequent events
-            // if current event didn't change state put it in pending queue and return
-            // finally check the pending event queue and process it following the above rules
-            // finally finally - preserve the state
-            Debug($"Handling event ({@event.GetType().Name}. CurrentState: {CurrentState.GetType().Name}");
-
-            var canEnter = await _handleEventsLock.WaitAsync(2000); // Arbitrary number = 1 second
-            if (canEnter)
-            {
-                // TODO: Clean up this method.
-                try
-                {
-                    await HandleInner();
-                    PersistState();
-                }
-                catch (Exception exception)
-                {
-                    _logger.Error("Error processing handle event.", exception);
-                    throw;
-                }
-                finally
-                {
-                    _handleEventsLock.Release();
-                }
-            }
-            else
-            {
-                Debug("Failed to acquire HandleEvent lock.");
-            }
         }
 
         private void PersistState()
         {
             Debug(
-                $"Prersisting State and PendingQueue. State: {CurrentState.GetType().Name}. Queue: {_pendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}");
+                $"Persisting State and PendingQueue. State: {CurrentState.GetType().Name}. Queue: {PendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}");
 
             if (CurrentState != null && CurrentState.Persist)
             {
                 _mobileDevice.SetPreference(PersistKeys.StateMachine.CURRENT_STATE, CurrentState.GetType().Name, PersistKeys.StateMachine.SharedName);
             }
 
-            var events = _pendingEvents.ToList();
+            var events = PendingEvents.ToList();
 
             // Saves pending events as a pipe separated list.
             _mobileDevice.SetPreference(PersistKeys.StateMachine.PENDING_EVENTS, events.Select(x => x.GetType().Name).JoinStrings("|"), PersistKeys.StateMachine.SharedName);
@@ -212,7 +217,7 @@ namespace IO.Ably.Push
 
         private void AddToEventQueue(Event @event)
         {
-            _pendingEvents.Enqueue(@event);
+            PendingEvents.Enqueue(@event);
         }
 
         private void GetRegistrationToken()
@@ -279,11 +284,6 @@ namespace IO.Ably.Push
             }
         }
 
-        private void SendIntent(string name)
-        {
-            _mobileDevice.SendIntent(name, new Dictionary<string, object>());
-        }
-
         private void SetDeviceIdentityToken(string deviceIdentityToken)
         {
             LocalDevice.DeviceIdentityToken = deviceIdentityToken;
@@ -292,7 +292,40 @@ namespace IO.Ably.Push
 
         private void CallActivatedCallback(ErrorInfo reason)
         {
-            SendErrorIntent("PUSH_ACTIVATE", reason);
+            if (_mobileDevice.Callbacks.ActivatedCallback != null)
+            {
+                _ = NotifyExternalClient(() => _mobileDevice.Callbacks.ActivatedCallback?.Invoke(reason), nameof(_mobileDevice.Callbacks.ActivatedCallback));
+            }
+        }
+
+        private void CallDeactivatedCallback(ErrorInfo reason)
+        {
+            if (_mobileDevice.Callbacks.DeactivatedCallback != null)
+            {
+                _ = NotifyExternalClient(() => _mobileDevice.Callbacks.DeactivatedCallback(reason), nameof(_mobileDevice.Callbacks.DeactivatedCallback));
+            }
+        }
+
+        private void CallSyncRegistrationFailedCallback(ErrorInfo reason)
+        {
+            if (_mobileDevice.Callbacks.SyncRegistrationFailedCallback != null)
+            {
+                _ = NotifyExternalClient(() => _mobileDevice.Callbacks.SyncRegistrationFailedCallback(reason), nameof(_mobileDevice.Callbacks.SyncRegistrationFailedCallback));
+            }
+        }
+
+        private Task NotifyExternalClient(Func<Task> action, string reason)
+        {
+            try
+            {
+                return Task.Run(() => ActionUtils.SafeExecute(action));
+            }
+            catch (Exception e)
+            {
+                Error("Error while notifying external client for " + reason, e);
+            }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -380,11 +413,6 @@ namespace IO.Ably.Push
             LocalDevice = new LocalDevice();
         }
 
-        private void CallSyncRegistrationFailedCallback(ErrorInfo reason)
-        {
-            SendErrorIntent("PUSH_UPDATE_FAILED", reason);
-        }
-
         public void LoadPersistedState()
         {
             Debug("Loading persisted state.");
@@ -399,10 +427,10 @@ namespace IO.Ably.Push
             try
             {
                 CurrentState = LoadState();
-                _pendingEvents = LoadPersistedEvents();
+                PendingEvents = LoadPersistedEvents();
 
                 Debug(
-                    $"State loaded. CurrentState: '{CurrentState.GetType().Name}', PendingEvents: '{_pendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}'.");
+                    $"State loaded. CurrentState: '{CurrentState.GetType().Name}', PendingEvents: '{PendingEvents.Select((x, i) => $"({i}) {x.GetType().Name}").JoinStrings()}'.");
 
                 Queue<Event> LoadPersistedEvents()
                 {

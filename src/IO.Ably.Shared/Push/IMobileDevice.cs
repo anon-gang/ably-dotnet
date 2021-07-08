@@ -59,5 +59,10 @@ namespace IO.Ably.Push
         /// Device form factor.
         /// </summary>
         string FormFactor { get; }
+
+        /// <summary>
+        /// Defines callbacks executed at different parts of the push journey.
+        /// </summary>
+        PushCallbacks Callbacks { get; }
     }
 }

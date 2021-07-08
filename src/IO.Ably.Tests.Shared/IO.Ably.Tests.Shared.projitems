@@ -68,6 +68,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)MessagePack\SerializationTests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MsgPackMessageSerializerTests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Push\ActivationStateMachineTests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Push\ActivationStateMachineTests.HandleEvent.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Push\FakeMobileDevice.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Realtime\ChannelSandboxSpecs.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Realtime\ChannelSpecs.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Realtime\ChannelsSpecs.cs" />
