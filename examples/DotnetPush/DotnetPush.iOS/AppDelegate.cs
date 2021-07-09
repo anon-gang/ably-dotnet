@@ -53,6 +53,7 @@ namespace DotnetPush.iOS
         public override bool FinishedLaunching(UIApplication app, NSDictionary options)
         {
             global::Xamarin.Forms.Forms.Init();
+            InitialiseAbly();
             LoadApplication(new App(_realtime, _loggerSink));
 
             return base.FinishedLaunching(app, options);
@@ -60,7 +61,7 @@ namespace DotnetPush.iOS
 
         public override void RegisteredForRemoteNotifications(UIApplication application, NSData deviceToken)
         {
-            var token = deviceToken.ToString();
+            var token = deviceToken;
             AblyAppleMobileDevice.OnNewRegistrationToken(token, _realtime);
         }
 
@@ -70,6 +71,34 @@ namespace DotnetPush.iOS
                 new ErrorInfo($"Failed to get Registration token for push notifications: {error.LocalizedDescription}");
 
             AblyAppleMobileDevice.OnRegistrationTokenFailed(ablyError, _realtime);
+        }
+
+        public override void ReceivedRemoteNotification (UIApplication application, NSDictionary userInfo)
+        {
+            NSDictionary aps = userInfo.ObjectForKey(new NSString("aps")) as NSDictionary;
+            string alert = "Background: ";
+            if (aps.ContainsKey(new NSString("alert")))
+                alert += (aps[new NSString("alert")] as NSString).ToString();
+            //show alert
+            if (!string.IsNullOrEmpty(alert))
+            {
+                UIAlertView avAlert = new UIAlertView("Notification", alert, null, "OK", null);
+                avAlert.Show();
+            }
+        }
+
+        public override void DidReceiveRemoteNotification(UIApplication application, NSDictionary userInfo, Action<UIBackgroundFetchResult> completionHandler)
+        {
+            NSDictionary aps = userInfo.ObjectForKey(new NSString("aps")) as NSDictionary;
+            string alert = "Foreground: ";
+            if (aps.ContainsKey(new NSString("title")))
+                alert += (aps[new NSString("alert")] as NSString).ToString();
+            //show alert
+            if (!string.IsNullOrEmpty(alert))
+            {
+                UIAlertView avAlert = new UIAlertView("Notification", alert, null, "OK", null);
+                avAlert.Show();
+            }
         }
 
         public void ShowErrorMessage(string message)

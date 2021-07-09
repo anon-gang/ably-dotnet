@@ -53,6 +53,10 @@
       <None Include="packages.config" />
     </ItemGroup>
     <ItemGroup>
+      <ProjectReference Include="..\..\examples\DotnetPush\DotnetPush\DotnetPush.csproj">
+        <Project>{181c3df6-5c17-4a68-83b9-1cebe3de5445}</Project>
+        <Name>DotnetPush</Name>
+      </ProjectReference>
       <ProjectReference Include="..\IO.Ably.NETStandard20\IO.Ably.NETStandard20.csproj">
         <Project>{97ED15E5-6546-4437-BF4F-B929700CE922}</Project>
         <Name>IO.Ably.NETStandard20</Name>

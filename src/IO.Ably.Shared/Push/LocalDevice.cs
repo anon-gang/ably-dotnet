@@ -22,29 +22,8 @@ namespace IO.Ably.Push
 
         internal RegistrationToken RegistrationToken
         {
-            get
-            {
-                var recipient = Push?.Recipient;
-                if (recipient != null)
-                {
-                    return new RegistrationToken(
-                        (string)recipient.GetValue("transportType"),
-                        (string)recipient.GetValue("registrationToken"));
-                }
-
-                return null;
-            }
-
-            set
-            {
-                if (value != null)
-                {
-                    JObject obj = new JObject();
-                    obj.Add("transportType", value.Type);
-                    obj.Add("registrationToken", value.Token);
-                    Push.Recipient = obj;
-                }
-            }
+            get => RegistrationToken.FromRecipientJson(Push?.Recipient, DefaultLogger.LoggerInstance);
+            set => Push.Recipient = RegistrationToken.ToRecipientJson(value, DefaultLogger.LoggerInstance);
         }
 
         /// <summary>

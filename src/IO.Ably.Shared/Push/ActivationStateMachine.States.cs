@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -40,6 +41,11 @@ namespace IO.Ably.Push
             public abstract bool CanHandleEvent(Event @event);
 
             public abstract Task<(State, Func<Task<Event>>)> Transition(Event @event);
+
+            public override string ToString()
+            {
+                return GetType().Name;
+            }
         }
 
         public sealed class NotActivated : State

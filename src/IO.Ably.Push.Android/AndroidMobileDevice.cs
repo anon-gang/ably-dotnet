@@ -17,6 +17,7 @@ namespace IO.Ably.Push.Android
     /// </summary>
     public class AndroidMobileDevice : IMobileDevice
     {
+        private const string TokenType = "fcm";
         private static AblyRealtime _realtimeInstance;
 
         /// <summary>
@@ -52,7 +53,8 @@ namespace IO.Ably.Push.Android
             logger.Debug($"Received OnNewRegistrationToken with token {token}");
 
             var pushRealtime = _realtimeInstance.GetPushRealtime();
-            pushRealtime.StateMachine.UpdateRegistrationToken(Result.Ok(token));
+            var registrationToken = new RegistrationToken(TokenType, token);
+            pushRealtime.StateMachine.UpdateRegistrationToken(Result.Ok(registrationToken));
         }
 
         private readonly ILogger _logger;
@@ -109,37 +111,6 @@ namespace IO.Ably.Push.Android
         public PushCallbacks Callbacks { get; }
 
         /// <inheritdoc/>
-        public void SendIntent(string name, Dictionary<string, object> extraParameters)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                throw new ArgumentException("Please provide name when sending intent.", nameof(name));
-            }
-
-            _logger.Debug($"Sending intent {name}");
-
-            var action = "io.ably.broadcast." + name.ToLower();
-            try
-            {
-                Intent intent = new Intent(action);
-                if (extraParameters.Any())
-                {
-                    foreach (var pair in extraParameters)
-                    {
-                        intent.PutExtra(pair.Key, pair.Value.ToString());
-                    }
-                }
-
-                LocalBroadcastManager.GetInstance(Context).SendBroadcast(intent);
-            }
-            catch (Exception e)
-            {
-                _logger.Error($"Error sending intent {action}", e);
-                throw new AblyException(e);
-            }
-        }
-
-        /// <inheritdoc/>
         public void SetPreference(string key, string value, string groupName)
         {
             _logger.Debug($"Setting preferences: {groupName}:{key} with value {value}");
@@ -167,7 +138,7 @@ namespace IO.Ably.Push.Android
         }
 
         /// <inheritdoc/>
-        public void RequestRegistrationToken(Action<Result<string>> callback)
+        public void RequestRegistrationToken(Action<Result<RegistrationToken>> callback)
         {
             try
             {
@@ -181,16 +152,16 @@ namespace IO.Ably.Push.Android
             {
                 _logger.Error("Error while requesting a new Registration token.", e);
                 var errorInfo = new ErrorInfo($"Failed to request AndroidToken. Error: {e?.Message}.", 50000, HttpStatusCode.InternalServerError, e);
-                callback(Result.Fail<string>(errorInfo));
+                callback(Result.Fail<RegistrationToken>(errorInfo));
             }
         }
 
         private class RequestTokenCompleteListener : Java.Lang.Object, IOnCompleteListener
         {
-            private readonly Action<Result<string>> _callback;
+            private readonly Action<Result<RegistrationToken>> _callback;
             private readonly ILogger _logger;
 
-            public RequestTokenCompleteListener(Action<Result<string>> callback, ILogger logger)
+            public RequestTokenCompleteListener(Action<Result<RegistrationToken>> callback, ILogger logger)
             {
                 _callback = callback;
                 _logger = logger;
@@ -201,7 +172,8 @@ namespace IO.Ably.Push.Android
                 if (task.IsSuccessful)
                 {
                     _logger.Debug($"RequestTaken completed successfully. Result: {task.Result}");
-                    _callback(Result.Ok((string)task.Result));
+                    var registrationToken = new RegistrationToken(TokenType, (string)task.Result);
+                    _callback(Result.Ok(registrationToken));
                 }
                 else
                 {
@@ -212,7 +184,7 @@ namespace IO.Ably.Push.Android
                         50000,
                         HttpStatusCode.InternalServerError,
                         exception);
-                    _callback(Result.Fail<string>(errorInfo));
+                    _callback(Result.Fail<RegistrationToken>(errorInfo));
                 }
             }
         }

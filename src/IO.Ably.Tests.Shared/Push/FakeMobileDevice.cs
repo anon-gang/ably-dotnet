@@ -6,7 +6,8 @@ namespace IO.Ably.Tests.DotNetCore20.Push
 {
     public class FakeMobileDevice : IMobileDevice
     {
-        public Func<Result<string>> GetRegistrationToken => () => Result.Ok(Guid.NewGuid().ToString());
+        public Func<Result<RegistrationToken>> GetRegistrationToken
+            => () => Result.Ok(new RegistrationToken("fake", Guid.NewGuid().ToString()));
 
         public Dictionary<string, string> Settings { get; } = new Dictionary<string, string>();
 
@@ -47,7 +48,7 @@ namespace IO.Ably.Tests.DotNetCore20.Push
             }
         }
 
-        public void RequestRegistrationToken(Action<Result<string>> callback)
+        public void RequestRegistrationToken(Action<Result<RegistrationToken>> callback)
         {
             callback(GetRegistrationToken());
         }

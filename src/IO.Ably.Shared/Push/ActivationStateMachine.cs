@@ -215,11 +215,6 @@ namespace IO.Ably.Push
             _mobileDevice.SetPreference(PersistKeys.StateMachine.PENDING_EVENTS, events.Select(x => x.GetType().Name).JoinStrings("|"), PersistKeys.StateMachine.SharedName);
         }
 
-        private void AddToEventQueue(Event @event)
-        {
-            PendingEvents.Enqueue(@event);
-        }
-
         private void GetRegistrationToken()
         {
             // On Android the callback is executed.
@@ -240,21 +235,7 @@ namespace IO.Ably.Push
             _mobileDevice.SetPreference(PersistKeys.Device.DEVICE_SECRET, localDevice.DeviceSecret, PersistKeys.Device.SharedName);
         }
 
-        private void SendErrorIntent(string name, ErrorInfo errorInfo)
-        {
-            var properties = new Dictionary<string, object>();
-            properties.Add("hasError", errorInfo != null);
-            if (errorInfo != null)
-            {
-                properties.Add("error.message", errorInfo.Message);
-                properties.Add("error.statusCode", (int?)errorInfo.StatusCode);
-                properties.Add("error.code", errorInfo.Code);
-            }
-
-            _mobileDevice.SendIntent(name, properties);
-        }
-
-        public void UpdateRegistrationToken(Result<string> tokenResult)
+        public void UpdateRegistrationToken(Result<RegistrationToken> tokenResult)
         {
             if (tokenResult.IsSuccess)
             {
@@ -262,18 +243,17 @@ namespace IO.Ably.Push
                 var previous = LocalDevice.RegistrationToken;
                 if (previous != null)
                 {
-                    if (previous.Token.EqualsTo(token))
+                    if (previous.Token.EqualsTo(token.Token))
                     {
                         return;
                     }
                 }
 
                 // TODO: Log
-                var registrationToken = new RegistrationToken(RegistrationToken.Fcm, token);
-                LocalDevice.RegistrationToken = registrationToken;
+                LocalDevice.RegistrationToken = token;
 
                 // TODO: What happens if this errors
-                PersistRegistrationToken(registrationToken);
+                PersistRegistrationToken(token);
 
                 _ = HandleEvent(new GotPushDeviceDetails());
             }

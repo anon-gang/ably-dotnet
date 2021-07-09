@@ -62,7 +62,7 @@ namespace DotnetPush.ViewModels
             try
             {
                 LogEntries.Clear();
-                foreach (var item in LoggerSink.Messages)
+                foreach (var item in LoggerSink.GetMessages())
                 {
                     switch (ShowOnlyStateMachineLogs)
                     {
