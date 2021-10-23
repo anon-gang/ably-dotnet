@@ -100,7 +100,8 @@ namespace IO.Ably
         /// <inheritdoc/>
         public IAblyAuth Auth => RestClient.AblyAuth;
 
-        internal PushRealtime Push { get; }
+        /// <inheritdoc/>
+        public PushRealtime Push { get; }
 
         /// <inheritdoc/>
         public string ClientId => Auth.ClientId;

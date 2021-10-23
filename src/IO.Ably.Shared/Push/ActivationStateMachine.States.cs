@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
+#pragma warning disable 1998
 
 namespace IO.Ably.Push
 {
@@ -19,7 +20,7 @@ namespace IO.Ably.Push
                 return EmptyNextEventFunc;
             }
 
-            return async () => nextEvent;
+            return () => Task.FromResult(nextEvent);
         }
 
         public abstract class State
