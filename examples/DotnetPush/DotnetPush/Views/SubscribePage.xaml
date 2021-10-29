@@ -1,12 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="DotnetPush.Views.AboutPage"
+             x:Class="DotnetPush.Views.SubscribePage"
              xmlns:vm="clr-namespace:DotnetPush.ViewModels"
              Title="{Binding Title}">
 
   <ContentPage.BindingContext>
-    <vm:AboutViewModel />
+    <vm:SubscribeViewModel />
   </ContentPage.BindingContext>
 
   <ContentPage.Resources>
@@ -20,19 +20,14 @@
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
-    <StackLayout BackgroundColor="{StaticResource Accent}" VerticalOptions="FillAndExpand" HorizontalOptions="Fill">
+    <StackLayout BackgroundColor="Black" VerticalOptions="FillAndExpand" HorizontalOptions="Fill">
       <StackLayout Orientation="Horizontal" HorizontalOptions="Center" VerticalOptions="Center">
         <ContentView Padding="0,40,0,40" VerticalOptions="FillAndExpand">
-          <Image Source="xamarin_logo.png" VerticalOptions="Center" HeightRequest="64" />
+          <Image Source="ably_logo.png" VerticalOptions="Center" HeightRequest="64" />
         </ContentView>
       </StackLayout>
     </StackLayout>
-    <StackLayout Grid.Row="1" IsVisible="{Binding ShowAblyMessage}">
-      <ContentView>
-        <Label Text="Ably is not enabled. Go to settings and provide all configuration details."></Label>
-      </ContentView>
-    </StackLayout>
-    <ScrollView Grid.Row="1" IsVisible="{Binding HasAbly}">
+    <ScrollView Grid.Row="1">
       <StackLayout Orientation="Vertical" Padding="30,24,30,24" Spacing="10">
         <StackLayout Orientation="Horizontal">
           <Label Text="ClientId: "  TextColor="Black"/>

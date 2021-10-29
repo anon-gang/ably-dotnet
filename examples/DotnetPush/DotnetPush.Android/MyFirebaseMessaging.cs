@@ -4,7 +4,6 @@ using Android.Support.V4.App;
 using Firebase.Messaging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using IO.Ably.Push.Android;
 
 namespace DotnetPush.Droid

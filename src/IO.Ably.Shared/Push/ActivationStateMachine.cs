@@ -13,8 +13,9 @@ namespace IO.Ably.Push
         private readonly SemaphoreSlim _handleEventsLock = new SemaphoreSlim(1, 1);
         private readonly AblyRest _restClient;
         private readonly ILogger _logger;
-        private readonly Action<string, string> _stateChangeHandler = (currentState, newState) => { };
         private State _currentState;
+
+        internal Action<string, string> StateChangeHandler { get; set; } = (currentState, newState) => { };
 
         public string ClientId { get; }
 
@@ -29,7 +30,7 @@ namespace IO.Ably.Push
             {
                 if (value != null && ReferenceEquals(value, _currentState) == false)
                 {
-                    _stateChangeHandler(_currentState?.GetType().Name, value.GetType().Name);
+                    StateChangeHandler(_currentState?.GetType().Name, value.GetType().Name);
                 }
 
                 _currentState = value;
@@ -258,7 +259,42 @@ namespace IO.Ably.Push
 
         public void UpdateRegistrationToken(Result<RegistrationToken> tokenResult)
         {
-            throw new NotImplementedException();
+            if (tokenResult.IsSuccess)
+            {
+                var token = tokenResult.Value;
+                var previous = LocalDevice.RegistrationToken;
+                if (previous != null)
+                {
+                    if (previous.Token.EqualsTo(token.Token))
+                    {
+                        return;
+                    }
+                }
+
+                if (_logger.IsDebug)
+                {
+                    _logger.Debug($"Updating registration token to ${token.ToJson()}");
+                }
+
+                LocalDevice.RegistrationToken = token;
+                PersistLocalDevice();
+
+                _ = HandleEvent(new GotPushDeviceDetails());
+            }
+            else
+            {
+                if (tokenResult.Error != null)
+                {
+                    _logger.Error($"Failed to get a new registration token. Error: {tokenResult.Error.Message}, code: {tokenResult.Error.Code}", tokenResult.Error.InnerException);
+                }
+
+                _ = HandleEvent(new GettingPushDeviceDetailsFailed(tokenResult.Error));
+            }
+
+            void PersistLocalDevice()
+            {
+                LocalDevice.PersistLocalDevice(MobileDevice, LocalDevice);
+            }
         }
 
         private void SetDeviceIdentityToken(string deviceIdentityToken)

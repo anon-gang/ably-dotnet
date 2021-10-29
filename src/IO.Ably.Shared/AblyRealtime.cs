@@ -121,7 +121,7 @@ namespace IO.Ably
         /// <summary>
         /// The local device instance represents the current state of the device in respect of it being a target for push notifications.
         /// </summary>
-        internal LocalDevice Device => RestClient.Device;
+        public LocalDevice Device => RestClient.Device;
 
         /// <inheritdoc/>
         public Task<PaginatedResult<Stats>> StatsAsync()

@@ -3,14 +3,14 @@
 namespace DotnetPush.Views
 {
     /// <summary>
-    /// Settings page.
+    /// About page.
     /// </summary>
-    public partial class SettingsPage : ContentPage
+    public partial class SubscribePage : ContentPage
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="AboutPage"/> class.
+        /// Initializes a new instance of the <see cref="SubscribePage"/> class.
         /// </summary>
-        public SettingsPage()
+        public SubscribePage()
         {
             InitializeComponent();
         }

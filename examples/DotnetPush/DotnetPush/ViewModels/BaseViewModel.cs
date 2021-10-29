@@ -21,22 +21,6 @@ namespace DotnetPush.ViewModels
         /// </summary>
         public IRealtimeClient Ably => DependencyService.Get<IRealtimeClient>();
 
-        /// <summary>
-        /// Ably factory.
-        /// </summary>
-        protected AblyFactory AblyFactory => DependencyService.Get<AblyFactory>();
-
-        private bool _hasAbly = false;
-
-        /// <summary>
-        /// Turns on when Ably is instantiated.
-        /// </summary>
-        public bool HasAbly
-        {
-            get => _hasAbly;
-            set => SetProperty(ref _hasAbly, value);
-        }
-
         private bool _isBusy = false;
 
         /// <summary>

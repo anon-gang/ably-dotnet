@@ -65,35 +65,6 @@ namespace IO.Ably.Push.Android
 
         private Context Context => Application.Context;
 
-        public void SendIntent(string name, Dictionary<string, object> extraParameters)
-        {
-            if (name.IsNotEmpty())
-            {
-                throw new ArgumentException("Please provide name when sending intent.", nameof(name));
-            }
-
-            var action = "io.ably.broadcast." + name.ToLower();
-            try
-            {
-                Intent intent = new Intent(action);
-                if (extraParameters.Any())
-                {
-                    foreach (var pair in extraParameters)
-                    {
-                        intent.PutExtra(pair.Key, pair.Value.ToString());
-                    }
-                }
-
-                LocalBroadcastManager.GetInstance(Context).SendBroadcast(intent);
-            }
-            catch (Exception e)
-            {
-                _logger.Error($"Error sending intent {action}", e);
-                // Log
-                throw new AblyException(e);
-            }
-        }
-
         public void SetPreference(string key, string value, string groupName)
         {
             Preferences.Set(key, value, groupName);
@@ -101,7 +72,7 @@ namespace IO.Ably.Push.Android
 
         public string GetPreference(string key, string groupName)
         {
-            return Preferences.Get(key, groupName);
+            return Preferences.Get(key, null, groupName);
         }
 
         public void RemovePreference(string key, string groupName)

@@ -8,17 +8,19 @@ namespace DotnetPush.ViewModels
     /// <summary>
     /// ViewModel class for the About page.
     /// </summary>
-    public class AboutViewModel : BaseViewModel
+    public class SubscribeViewModel : BaseViewModel
     {
         private string _clientId;
         private string _currentState;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AboutViewModel"/> class.
+        /// Initializes a new instance of the <see cref="SubscribeViewModel"/> class.
         /// </summary>
-        public AboutViewModel()
+        public SubscribeViewModel()
         {
-            Title = "About";
+            Title = "Subscribe for Push";
+
+            ClientId = Ably.ClientId;
 
             // pushRealtime.OnActivationSta teMachineChangeState((current, next) =>
             // {
@@ -26,20 +28,6 @@ namespace DotnetPush.ViewModels
             // });
             ActivatePush = new Command(() => Ably.Push.Activate());
             DeactivatePush = new Command(() => Ably.Push.Deactivate());
-            PropertyChanged += OnPropertyChanged;
-        }
-
-        private void OnPropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(HasAbly))
-            {
-                ShowAblyMessage = !HasAbly;
-
-                if (HasAbly)
-                {
-                    ClientId = Ably.Auth.ClientId;
-                }
-            }
         }
 
         /// <summary>
@@ -51,17 +39,6 @@ namespace DotnetPush.ViewModels
         /// Command which will call AblyRealtime.Push.Deactivate().
         /// </summary>
         public ICommand DeactivatePush { get; }
-
-        private bool _showAblyMessage = true;
-
-        /// <summary>
-        /// Displays current clientId that is set in the library.
-        /// </summary>
-        public bool ShowAblyMessage
-        {
-            get => _showAblyMessage;
-            set => SetProperty(ref _showAblyMessage, value);
-        }
 
         /// <summary>
         /// Displays current clientId that is set in the library.

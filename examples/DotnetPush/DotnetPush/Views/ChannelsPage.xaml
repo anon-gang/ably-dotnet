@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:d="http://xamarin.com/schemas/2014/forms/design"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:DotnetPush.ViewModels"
+             mc:Ignorable="d"
+             x:Class="DotnetPush.Views.ChannelsPage">
+
+  <ContentPage.BindingContext>
+    <local:ChannelsViewModel />
+  </ContentPage.BindingContext>
+
+  <ContentPage.ToolbarItems>
+    <ToolbarItem Text="Refresh" Command="{Binding LoadChannelsCommand}" />
+  </ContentPage.ToolbarItems>
+  <ContentPage.Content>
+    <StackLayout Orientation="Vertical">
+      <Entry Text="{Binding ChannelName, Mode=TwoWay}"></Entry>
+      <Button Text="Subscribe" Command="{Binding SubscribeToChannel}"></Button>
+
+      <RefreshView x:DataType="local:ChannelsViewModel" Command="{Binding LoadChannelsCommand}" IsRefreshing="{Binding IsBusy, Mode=TwoWay}">
+        <CollectionView x:Name="ListChannels"
+                        ItemsSource="{Binding ChannelsCollection}"
+                        SelectionMode="None">
+          <CollectionView.ItemTemplate>
+            <DataTemplate>
+              <StackLayout Padding="10" x:DataType="local:AblyChannel">
+                <Label Text="{Binding Name}"
+                       LineBreakMode="NoWrap"
+                       Style="{DynamicResource ListItemTextStyle}"
+                       FontSize="16"  TextColor="Black" />
+              </StackLayout>
+            </DataTemplate>
+          </CollectionView.ItemTemplate>
+        </CollectionView>
+      </RefreshView>
+    </StackLayout>
+
+    </ContentPage.Content>
+</ContentPage>

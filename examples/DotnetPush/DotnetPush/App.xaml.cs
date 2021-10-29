@@ -9,23 +9,16 @@ namespace DotnetPush
     public partial class App
     {
         /// <summary>
-        /// Ably Factory.
-        /// </summary>
-        public AblyFactory AblyFactory { get; }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="App"/> class.
         /// </summary>
-        /// <param name="ablyFactory">Factory.</param>
-        /// <param name="appLoggerSink">Instance of the AppLoggerSink so we can display and analyze logs inside the app.</param>
-        public App(AblyFactory ablyFactory, AppLoggerSink appLoggerSink)
+        /// <param name="realtimeClient">Ably client.</param>
+        /// <param name="loggerSink">Instance of the AppLoggerSink so we can display and analyze logs inside the app.</param>
+        public App(IRealtimeClient realtimeClient, AppLoggerSink loggerSink)
         {
             InitializeComponent();
-            AblyFactory = ablyFactory;
 
-            DependencyService.RegisterSingleton(ablyFactory);
-
-            DependencyService.RegisterSingleton(appLoggerSink);
+            DependencyService.RegisterSingleton(realtimeClient);
+            DependencyService.RegisterSingleton(loggerSink);
             MainPage = new AppShell();
         }
     }
