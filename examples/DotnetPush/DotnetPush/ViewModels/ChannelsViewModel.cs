@@ -1,13 +1,9 @@
-﻿using DotnetPush.Views;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Text;
+﻿using System.Collections.ObjectModel;
 using System.Threading.Tasks;
-using DotnetPush.Models;
 using IO.Ably;
 using IO.Ably.Push;
 using Xamarin.Forms;
+using static DotnetPush.Infrastructure.Helpers;
 
 namespace DotnetPush.ViewModels
 {
@@ -38,6 +34,7 @@ namespace DotnetPush.ViewModels
     {
         private string _channelName;
         private string _message;
+        private bool _messageIsVisible;
 
         /// <summary>
         /// Command to Load log entries.
@@ -50,23 +47,52 @@ namespace DotnetPush.ViewModels
         public Command SubscribeToChannel { get; }
 
         /// <summary>
+        /// Unsubscribe from a channel.
+        /// </summary>
+        public Command UnSubscribeFromChannel { get; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="LogViewModel"/> class.
         /// </summary>
         public ChannelsViewModel()
         {
             ChannelsCollection = new ObservableCollection<AblyChannel>();
+            UnSubscribeFromChannel = new Command<string>(async channelName =>
+            {
+                await Ably.Channels.Get(channelName).Push.UnsubscribeDevice();
+                await ExecuteLoadItemsCommand(); // Make sure we reload the channels list
+
+                Message = $"Unsubscribed from channel {channelName}";
+                MessageIsVisible = true;
+
+                DelayAction(() =>
+                {
+                    Message = string.Empty;
+                    MessageIsVisible = false;
+                    return Task.CompletedTask;
+                });
+            });
             LoadChannelsCommand = new Command(async () => await ExecuteLoadItemsCommand());
             SubscribeToChannel = new Command(async () =>
             {
+                MessageIsVisible = false;
+
                 if (string.IsNullOrEmpty(ChannelName))
                 {
                     Message = "Please enter a channel name";
+                    return;
+                }
+
+                if (ChannelName.StartsWith("push:") == false)
+                {
+                    Message = "Make sure the 'push:' channel namespace is set.";
+                    return;
                 }
 
                 try
                 {
                     await Ably.Channels.Get(ChannelName).Push.SubscribeDevice();
-                    Message = "Device successfully subscribed to channel";
+                    await ExecuteLoadItemsCommand(); // Make sure we reload the channels list
                 }
                 catch (AblyException e)
                 {
@@ -97,7 +123,24 @@ namespace DotnetPush.ViewModels
         public string Message
         {
             get => _message;
-            set => SetProperty(ref _message, value);
+            set
+            {
+                if (string.IsNullOrWhiteSpace(_message) == false)
+                {
+                    MessageIsVisible = true;
+                }
+
+                SetProperty(ref _message, value);
+            }
+        }
+
+        /// <summary>
+        /// Show / Hide message label.
+        /// </summary>
+        public bool MessageIsVisible
+        {
+            get => _messageIsVisible;
+            set => SetProperty(ref _messageIsVisible, value);
         }
 
         private async Task ExecuteLoadItemsCommand()
@@ -115,7 +158,9 @@ namespace DotnetPush.ViewModels
                     return;
                 }
 
-                var subscriptions = await Ably.Push.Admin.ChannelSubscriptions.ListAsync(ListSubscriptionsRequest.WithDeviceId(device.Id));
+                // For this information you need to have PushAdmin permissions for the app. Usually that will not be the case for mobile app. I'm adding it here because
+                // it helps with debugging.
+                var subscriptions = await Ably.Push.Admin.ChannelSubscriptions.ListAsync(ListSubscriptionsRequest.WithDeviceId(channel: null, device.Id));
                 foreach (var subscription in subscriptions.Items)
                 {
                     ChannelsCollection.Add(new AblyChannel(subscription.Channel));
