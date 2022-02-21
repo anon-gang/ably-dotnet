@@ -9,7 +9,7 @@ using System.Reflection;
 namespace System {
     internal static class AssemblyVersionInformation {
         internal const System.String AssemblyCompany = "Ably";
-        internal const System.String AssemblyProduct = "Ably .NET Library";
+        internal const System.String AssemblyProduct = "Ably .NET Library - build probe 00";
         internal const System.String AssemblyVersion = "1.2.7";
         internal const System.String AssemblyFileVersion = "1.2.7";
     }
